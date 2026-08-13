@@ -21,8 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Refresh publications from arXiv
+        if: github.event_name != 'push'
         run: python3 scripts/update_arxiv.py
       - name: Commit refreshed publication data
+        if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
