@@ -19,7 +19,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Refresh publications from arXiv
         run: python3 scripts/update_arxiv.py
       - name: Commit refreshed publication data
