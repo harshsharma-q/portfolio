@@ -1,20 +1,39 @@
-const projects=[
-{tag:"Quantum batteries",title:"Quadratic power enhancement in extended Dicke quantum battery",text:"A hybrid battery of spin ensembles and two cavity modes that achieves quadratic power enhancement through the joint scaling of quantum correlations and evolution speed—without sacrificing efficiency or robustness.",id:"2512.15607"},
-{tag:"Many-body entanglement",title:"Thermodynamic probes of multipartite entanglement",text:"A framework for estimating genuine multipartite entanglement through global and local ergotropy, designed for strongly interacting systems and near-term quantum simulators.",id:"2511.03266"},
-{tag:"Hybrid quantum systems",title:"Protecting information in a parametrically driven hybrid quantum system",text:"A full quantum treatment showing how parametric driving can protect encoded information from decoherence caused by inhomogeneity in spin ensembles.",id:"2207.14354"},
-{tag:"Quantum error correction",title:"Error correction for unresolvable spin ensembles",text:"A physically realizable encoding that protects quantum information against individual and collective errors without requiring access to individual spins.",id:"2408.11628"}];
-const fallback=[
-{id:"2512.15607",title:"Quadratic power enhancement in extended Dicke quantum battery",authors:"Harsh Sharma · Himadri Shekhar Dhar",year:"2025"},
-{id:"2511.03266",title:"Thermodynamic Probes of Multipartite Entanglement in Strongly Interacting Quantum Systems",authors:"Harsh Sharma · Sampriti Saha · A. S. Majumdar · Manik Banik · Himadri Shekhar Dhar",year:"2025"},
-{id:"2408.11628",title:"Quantum error correction for unresolvable spin ensemble",authors:"Harsh Sharma · Himadri Shekhar Dhar · Hoi-Kwan Lau",year:"2024"},
-{id:"2207.14354",title:"Protecting information in a parametrically driven hybrid quantum system",authors:"Siddharth Tiwary · Harsh Sharma · Himadri Shekhar Dhar",year:"2025",journal:"Quantum 9, 1754 (2025)"}];
-const talks=[
-["2025","Talk","Quantum Trajectories","ICTS–TIFR, Bengaluru","Quantum Error Correction for Unresolvable Spin Ensembles"],["2025","Poster","Quantum Symposium for Young Investigators","CQuICC, IIT Madras","Protecting Information in a Parametrically Driven Hybrid Quantum System"],["2025","Talk","APS Global Physics Summit","American Physical Society","Quantum Error Correction for Unresolvable Spin Ensembles"],["2024","Workshop","Quantum Information and Quantum Dynamics","IIT Bombay",""],["2024","Talk","CAP Congress","Western University, Ontario, Canada","Quantum Error Correction for Unresolvable Spin Ensembles"],["2024","Conference","Photonics, Quantum Information, and Quantum Communication","SNBNCBS, Kolkata",""],["2023","Workshop","CREATE Commercialization & Communication","Quantum Algorithm Institute, Canada",""],["2023","Workshop","ICONS 2023","QuICST, IIT Bombay",""],["2021","Workshop","Simulation Methods in Scientific Computing","IIT Kharagpur",""],["2018","Camp","NIUS Exposure-cum-Nurture Camp","HBCSE, TIFR, Mumbai",""]];
-function projectCard(p,i){return `<article class="card"><small>0${i+1} · ${p.tag}</small><h3>${p.title}</h3><p>${p.text}</p><a href="https://arxiv.org/abs/${p.id}">Read the work ↗</a></article>`}
-function paper(p,i){return `<article class="pub"><small>${String(i+1).padStart(2,"0")}</small><div><i>${p.journal||`arXiv:${p.id}`} · ${p.year}</i><h3>${p.title}</h3><p>${p.authors}</p></div><p><a href="https://arxiv.org/abs/${p.id}">Abstract ↗</a> <a href="https://arxiv.org/pdf/${p.id}">PDF ↓</a></p></article>`}
-const data=window.PUBLICATIONS||fallback;
-document.querySelector("#project-cards")?.insertAdjacentHTML("beforeend",projects.slice(0,4).map(projectCard).join(""));
-document.querySelector("#all-projects")?.insertAdjacentHTML("beforeend",projects.map(projectCard).join(""));
-document.querySelector("#publication-list")?.insertAdjacentHTML("beforeend",data.slice(0,4).map(paper).join(""));
-document.querySelector("#all-publications")?.insertAdjacentHTML("beforeend",data.map(paper).join(""));
-document.querySelector("#events")?.insertAdjacentHTML("beforeend",talks.map(t=>`<article><b>${t[0]}</b><small>${t[1]}</small><div><h3>${t[2]}</h3><p>${t[3]}</p>${t[4]?`<i>${t[4]}</i>`:""}</div></article>`).join(""));
+const content = window.SITE_CONTENT;
+const publications = window.PUBLICATIONS || [];
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[character]);
+const setText = (selector, value) => { const element = document.querySelector(selector); if (element) element.textContent = value; };
+const setLink = (selector, href) => { const element = document.querySelector(selector); if (element) element.href = href; };
+
+function projectCard(project, index) {
+  return `<article class="card"><div class="card-meta"><span>${String(index + 1).padStart(2,"0")}</span><small>${escapeHtml(project.tag)}</small></div><h3>${escapeHtml(project.title)}</h3><p>${escapeHtml(project.description)}</p><a href="https://arxiv.org/abs/${encodeURIComponent(project.arxiv)}" target="_blank" rel="noreferrer">View research <b>↗</b></a></article>`;
+}
+function paperCard(paper, index) {
+  return `<article class="pub"><small>${String(index + 1).padStart(2,"0")}</small><div><i>${escapeHtml(paper.journal || `arXiv:${paper.id}`)} · ${escapeHtml(paper.year)}</i><h3>${escapeHtml(paper.title)}</h3><p>${escapeHtml(paper.authors)}</p></div><div class="pub-actions"><a href="https://arxiv.org/abs/${encodeURIComponent(paper.id)}" target="_blank" rel="noreferrer">Abstract ↗</a><a href="https://arxiv.org/pdf/${encodeURIComponent(paper.id)}" target="_blank" rel="noreferrer">PDF ↓</a></div></article>`;
+}
+function backgroundItem(item, education = false) {
+  return `<article><small>${escapeHtml(item.period || item.year)}</small><div><b>${escapeHtml(item.degree || item.title)}</b><p>${escapeHtml(item.institution || item.organization)}</p>${education && item.detail ? `<i>${escapeHtml(item.detail)}</i>` : ""}</div></article>`;
+}
+function presentationItem(item) {
+  return `<article><b>${escapeHtml(item.year)}</b><small>${escapeHtml(item.type)}</small><div><h3>${escapeHtml(item.event)}</h3><p>${escapeHtml(item.venue)}</p>${item.title ? `<i>${escapeHtml(item.title)}</i>` : ""}</div></article>`;
+}
+
+setText("[data-name]", content.profile.name);
+setText("[data-role]", `${content.profile.role} · ${content.profile.institution}`);
+setText("[data-introduction]", content.profile.introduction);
+setText("[data-perspective]", `“${content.profile.perspective}”`);
+setText("[data-perspective-note]", content.profile.perspectiveNote);
+setText("[data-availability]", content.profile.availability);
+setText("[data-location]", content.profile.location);
+document.querySelectorAll("[data-email]").forEach(element => { element.textContent = content.profile.email; element.href = `mailto:${content.profile.email}`; });
+setLink("[data-linkedin]", content.links.linkedin); setLink("[data-orcid]", content.links.orcid); setLink("[data-arxiv]", content.links.arxiv);
+
+const selectedProjects = content.projects.filter(project => project.selected);
+document.querySelector("#project-cards")?.insertAdjacentHTML("beforeend", selectedProjects.map(projectCard).join(""));
+document.querySelector("#all-projects")?.insertAdjacentHTML("beforeend", content.projects.map(projectCard).join(""));
+document.querySelector("#publication-list")?.insertAdjacentHTML("beforeend", publications.slice(0,4).map(paperCard).join(""));
+document.querySelector("#all-publications")?.insertAdjacentHTML("beforeend", publications.map(paperCard).join(""));
+document.querySelector("#education-list")?.insertAdjacentHTML("beforeend", content.education.map(item => backgroundItem(item,true)).join(""));
+document.querySelector("#awards-list")?.insertAdjacentHTML("beforeend", content.awards.map(item => backgroundItem(item)).join(""));
+document.querySelector("#events")?.insertAdjacentHTML("beforeend", content.presentations.map(presentationItem).join(""));
+document.querySelector("#selected-events")?.insertAdjacentHTML("beforeend", content.presentations.filter(item => item.selected).slice(0,3).map(presentationItem).join(""));
+document.querySelector("#interests")?.insertAdjacentHTML("beforeend", content.researchInterests.map(item => `<span>${escapeHtml(item)}</span>`).join(""));
