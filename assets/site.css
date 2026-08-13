@@ -10,3 +10,31 @@
 @media(max-width:800px){#site-header{height:72px}.menu-button{display:block}#site-header nav{display:none;position:absolute;left:0;right:0;top:72px;background:var(--paper);padding:20px var(--pad);border-bottom:1px solid var(--line);flex-direction:column;gap:4px}#site-header nav.open{display:flex}.home-hero{grid-template-columns:1fr;min-height:auto}.home-hero:after{width:140px;height:140px}.intro{margin-top:30px}.section-heading,.research-grid,.split-section,.listing-section{grid-template-columns:1fr}.research-grid>p,.research-grid #interests{grid-column:1}.update-list{margin-left:0}.listing-intro{position:static;margin-bottom:30px}.page-cta{align-items:flex-start;flex-direction:column}.contact-grid{grid-template-columns:1fr}}
 @media(max-width:520px){.home-hero{padding-top:70px;padding-bottom:75px}.home-hero h1{font-size:75px}.research-summary,.updates,.split-section,.listing-section{padding-top:75px;padding-bottom:75px}.update-list article{grid-template-columns:1fr 20px}.update-list time{grid-column:1/-1}.page-cta>div{flex-direction:column}.page-hero{padding-top:70px;padding-bottom:80px}.page-hero h1{font-size:60px}.timeline article{grid-template-columns:75px 1fr}.activity{grid-template-columns:60px 1fr}.activity-links{grid-column:2;align-items:flex-start;flex-direction:row}.contact-page{padding-top:70px}.contact-page h1{font-size:60px}#site-footer,#site-footer>div{flex-direction:column;gap:8px}#site-footer{gap:25px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Compact spacing: keep the site information-dense on desktop and mobile. */
+#site-header{height:72px}
+.home-hero{min-height:520px;padding-top:72px;padding-bottom:65px;align-items:center}
+.home-hero h1{font-size:clamp(68px,8vw,116px);margin-top:24px}
+.home-hero:after{width:170px;height:170px;top:55px}
+.intro .role{margin:20px 0}
+.research-summary,.updates{padding-top:72px;padding-bottom:72px}
+.research-grid{margin-top:42px}
+.research-grid>p{margin-top:0}
+.update-list{margin-top:42px}
+.update-list article{padding-top:22px;padding-bottom:22px}
+.page-cta{padding-top:48px;padding-bottom:48px}
+.page-cta>p{margin:0}
+.page-hero{padding-top:65px;padding-bottom:70px}
+.page-hero h1{font-size:clamp(58px,6.8vw,94px);margin:34px 0 25px}
+.page-hero>p:last-child{margin-bottom:0}
+.split-section,.listing-section{padding-top:68px;padding-bottom:68px}
+.split-section h2,.listing-intro h2{margin:17px 0}
+.timeline article,.activity{padding-top:21px;padding-bottom:21px}
+.publication{padding-top:24px;padding-bottom:24px}
+.contact-page{min-height:0;padding-top:65px;padding-bottom:72px}
+.contact-page h1{font-size:clamp(60px,7.5vw,102px);margin:35px 0 25px}
+.email-large{padding-top:28px}
+.contact-grid{margin-top:52px}
+#site-footer{padding-top:30px;padding-bottom:30px}
+@media(max-width:800px){#site-header{height:68px}#site-header nav{top:68px}.home-hero{padding-top:55px;padding-bottom:55px}.intro{margin-top:10px}.research-summary,.updates,.split-section,.listing-section{padding-top:58px;padding-bottom:58px}.research-grid{margin-top:30px}.listing-intro{margin-bottom:18px}}
+@media(max-width:520px){.home-hero{padding-top:48px;padding-bottom:48px}.home-hero h1{font-size:66px}.research-summary,.updates,.split-section,.listing-section{padding-top:50px;padding-bottom:50px}.page-hero{padding-top:48px;padding-bottom:52px}.page-hero h1{font-size:54px;margin:26px 0 20px}.contact-page{padding-top:48px;padding-bottom:55px}.contact-page h1{font-size:54px;margin:28px 0 20px}.contact-grid{margin-top:38px}}
