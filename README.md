@@ -35,7 +35,7 @@ To link an event or recording, add `eventUrl` or `videoUrl` to its presentation 
 
 ## Publications
 
-`assets/publications.js` is refreshed weekly from Harsh Sharma’s arXiv author feed by `.github/workflows/pages.yml`. If arXiv is temporarily unavailable, deployment continues with the existing publication list.
+`assets/publications.js` is refreshed weekly from Harsh Sharma’s arXiv author feed by `.github/workflows/pages.yml`. Journal references and DOIs are displayed whenever arXiv supplies them; otherwise an item is labelled as a preprint. If arXiv is temporarily unavailable, deployment continues with the existing publication list.
 
 ## Local preview
 
