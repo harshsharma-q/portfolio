@@ -1,66 +1,24 @@
-const content = window.SITE_CONTENT || {};
-const publications = window.PUBLICATIONS || [];
+const data = window.SITE_CONTENT || {};
+const papers = window.PUBLICATIONS || [];
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
-const $ = selector => document.querySelector(selector);
-const put = (selector, value) => { const node = $(selector); if (node) node.textContent = value; };
-const link = (selector, href) => document.querySelectorAll(selector).forEach(node => node.href = href);
-const mount = (selector, markup) => { const node = $(selector); if (node) node.innerHTML = markup; };
+const page = document.body.dataset.page || "about";
+const nav = [["about","index.html","About"],["background","background.html","Background"],["activities","activities.html","Talks & Events"],["publications","publications.html","Publications"],["contact","contact.html","Contact"]];
 
-function projectCard(project, index) {
-  return `<article class="project-card">
-    <div class="project-number">${String(index + 1).padStart(2, "0")}</div>
-    <div class="project-body"><p class="project-tag">${esc(project.tag)}</p><h3>${esc(project.title)}</h3><p>${esc(project.description)}</p></div>
-    <a href="https://arxiv.org/abs/${encodeURIComponent(project.arxiv)}" target="_blank" rel="noreferrer" aria-label="Read ${esc(project.title)} on arXiv"><span>arXiv:${esc(project.arxiv)}</span><b>↗</b></a>
-  </article>`;
-}
+document.querySelector("#site-header").innerHTML = `<a class="brand" href="index.html"><strong>Harsh Sharma</strong><small>Quantum Researcher</small></a><button class="menu-button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav id="primary-nav" aria-label="Primary navigation">${nav.map(([id,url,label]) => `<a href="${url}"${page===id?' aria-current="page"':''}>${label}</a>`).join("")}</nav>`;
+document.querySelector("#site-footer").innerHTML = `<div><strong>Harsh Sharma</strong><span>Quantum Information · Quantum Thermodynamics</span></div><div><a href="mailto:${esc(data.profile.email)}">${esc(data.profile.email)}</a><span>© ${new Date().getFullYear()}</span></div>`;
 
-function paperCard(paper, index) {
-  return `<article class="paper-row">
-    <span class="paper-number">${String(index + 1).padStart(2, "0")}</span>
-    <div class="paper-body"><p>${esc(paper.journal || `arXiv:${paper.id}`)} · ${esc(paper.year)}</p><h3>${esc(paper.title)}</h3><small>${esc(paper.authors)}</small></div>
-    <div class="paper-actions"><a href="https://arxiv.org/abs/${encodeURIComponent(paper.id)}" target="_blank" rel="noreferrer">Abstract ↗</a><a href="https://arxiv.org/pdf/${encodeURIComponent(paper.id)}" target="_blank" rel="noreferrer">PDF ↓</a></div>
-  </article>`;
-}
+const menu = document.querySelector(".menu-button");
+menu.addEventListener("click", () => { const open = menu.getAttribute("aria-expanded") === "true"; menu.setAttribute("aria-expanded", String(!open)); document.querySelector("#primary-nav").classList.toggle("open", !open); });
 
-function detailItem(item, education = false) {
-  return `<article class="detail-item"><span>${esc(item.period || item.year)}</span><div><h4>${esc(item.degree || item.title)}</h4><p>${esc(item.institution || item.organization)}</p>${education && item.detail ? `<small>${esc(item.detail)}</small>` : ""}</div></article>`;
-}
+const setText = (selector,value) => document.querySelectorAll(selector).forEach(el => el.textContent=value);
+setText("[data-introduction]",data.profile.introduction); setText("[data-perspective-note]",data.profile.perspectiveNote); setText("[data-availability]",data.profile.availability); setText("[data-location]",data.profile.location); setText("[data-role]",`${data.profile.role}, ${data.profile.institution}`);
+document.querySelectorAll("[data-email]").forEach(el => { el.textContent=data.profile.email; el.href=`mailto:${data.profile.email}`; });
+[["[data-linkedin]",data.links.linkedin],["[data-orcid]",data.links.orcid],["[data-arxiv]",data.links.arxiv]].forEach(([selector,url]) => document.querySelectorAll(selector).forEach(el => el.href=url));
 
-function eventItem(item) {
-  return `<article class="event-row"><span>${esc(item.year)}</span><small>${esc(item.type)}</small><div><h3>${esc(item.event)}</h3><p>${esc(item.venue)}</p>${item.title ? `<em>${esc(item.title)}</em>` : ""}</div></article>`;
-}
-
-if (content.profile) {
-  put("[data-introduction]", content.profile.introduction);
-  put("[data-perspective]", content.profile.perspective);
-  put("[data-perspective-note]", content.profile.perspectiveNote);
-  put("[data-location]", content.profile.location);
-  document.querySelectorAll("[data-email]").forEach(node => { node.href = `mailto:${content.profile.email}`; if (!node.querySelector("span")) node.textContent = content.profile.email; });
-}
-if (content.links) {
-  link("[data-linkedin]", content.links.linkedin);
-  link("[data-orcid]", content.links.orcid);
-  link("[data-arxiv]", content.links.arxiv);
-}
-
-const projects = content.projects || [];
-mount("#project-cards", projects.filter(item => item.selected).map(projectCard).join(""));
-mount("#all-projects", projects.map(projectCard).join(""));
-mount("#publication-list", publications.slice(0, 4).map(paperCard).join(""));
-mount("#all-publications", publications.map(paperCard).join(""));
-mount("#education-list", (content.education || []).map(item => detailItem(item, true)).join(""));
-mount("#awards-list", (content.awards || []).map(item => detailItem(item)).join(""));
-mount("#selected-events", (content.presentations || []).filter(item => item.selected).slice(0, 3).map(eventItem).join(""));
-mount("#events", (content.presentations || []).map(eventItem).join(""));
-mount("#interests", (content.researchInterests || []).map(item => `<span>${esc(item)}</span>`).join(""));
-
-document.querySelectorAll("#current-year, #footer-year").forEach(node => node.textContent = new Date().getFullYear());
-
-const revealItems = document.querySelectorAll(".project-card, .paper-row, .event-row, .detail-item");
-if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-  revealItems.forEach(node => node.classList.add("reveal"));
-  const observer = new IntersectionObserver(entries => entries.forEach(entry => {
-    if (entry.isIntersecting) { entry.target.classList.add("revealed"); observer.unobserve(entry.target); }
-  }), { threshold: .08 });
-  revealItems.forEach(node => observer.observe(node));
-}
+const mount = (selector,html) => { const el=document.querySelector(selector); if(el) el.innerHTML=html; };
+mount("#interests",data.researchInterests.map(x=>`<span>${esc(x)}</span>`).join(""));
+mount("#updates-list",(data.updates||[]).map(x=>`<article><time>${esc(x.date)}</time><div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p></div><a href="${esc(x.url)}" target="_blank" rel="noreferrer" aria-label="Open ${esc(x.title)}">↗</a></article>`).join(""));
+const detail = (x,education) => `<article><time>${esc(x.period||x.year)}</time><div><h3>${esc(x.degree||x.title)}</h3><p>${esc(x.institution||x.organization)}</p>${education&&x.detail?`<small>${esc(x.detail)}</small>`:""}</div></article>`;
+mount("#education-list",data.education.map(x=>detail(x,true)).join("")); mount("#awards-list",data.awards.map(x=>detail(x,false)).join(""));
+mount("#events",data.presentations.map(x=>`<article class="activity"><div class="activity-meta"><time>${esc(x.year)}</time><span>${esc(x.type)}</span></div><div><h3>${esc(x.event)}</h3><p>${esc(x.venue)}</p>${x.title?`<strong>${esc(x.title)}</strong>`:""}</div><div class="activity-links">${x.eventUrl?`<a href="${esc(x.eventUrl)}" target="_blank" rel="noreferrer">Event ↗</a>`:""}${x.videoUrl?`<a class="video" href="${esc(x.videoUrl)}" target="_blank" rel="noreferrer">Watch video ▶</a>`:""}</div></article>`).join(""));
+mount("#all-publications",papers.map((x,i)=>`<article class="publication"><span>${String(i+1).padStart(2,"0")}</span><div><p>${esc(x.journal||`arXiv:${x.id}`)} · ${esc(x.year)}</p><h3>${esc(x.title)}</h3><small>${esc(x.authors)}</small><div><a href="https://arxiv.org/abs/${encodeURIComponent(x.id)}" target="_blank" rel="noreferrer">Abstract ↗</a><a href="https://arxiv.org/pdf/${encodeURIComponent(x.id)}" target="_blank" rel="noreferrer">PDF ↓</a></div></div></article>`).join(""));

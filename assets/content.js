@@ -28,6 +28,11 @@ window.SITE_CONTENT = {
     "Open quantum systems",
     "Many-body entanglement",
   ],
+  updates: [
+    { date: "December 2025", title: "New preprint on quantum batteries", description: "Our work on quadratic power enhancement in an extended Dicke quantum battery is now available on arXiv.", url: "https://arxiv.org/abs/2512.15607" },
+    { date: "November 2025", title: "New preprint on multipartite entanglement", description: "We introduce thermodynamic probes of genuine multipartite entanglement in strongly interacting quantum systems.", url: "https://arxiv.org/abs/2511.03266" },
+    { date: "January 2025", title: "Talk at Quantum Trajectories", description: "I presented our work on quantum error correction for unresolvable spin ensembles at ICTS–TIFR, Bengaluru.", url: "https://www.youtube.com/watch?v=PrN4ENJrXX4" },
+  ],
   projects: [
     { tag: "Quantum batteries", title: "Quadratic power enhancement in extended Dicke quantum battery", description: "A hybrid quantum battery architecture that connects genuine quantum advantage to the joint scaling of correlations and evolution speed, while retaining practical tunability and robustness.", arxiv: "2512.15607", selected: true },
     { tag: "Many-body entanglement", title: "Thermodynamic probes of multipartite entanglement", description: "A framework for diagnosing genuine multipartite entanglement through global and local ergotropy in strongly interacting systems and near-term quantum simulators.", arxiv: "2511.03266", selected: true },
@@ -45,11 +50,11 @@ window.SITE_CONTENT = {
     { year: "Award", title: "Best M.Sc. Project in Physics", organization: "IIT Palakkad" },
   ],
   presentations: [
-    { year: "2025", type: "Talk", event: "Quantum Trajectories", venue: "ICTS–TIFR, Bengaluru", title: "Quantum Error Correction for Unresolvable Spin Ensembles", selected: true },
+    { year: "2025", type: "Talk", event: "Quantum Trajectories", venue: "ICTS–TIFR, Bengaluru", title: "Quantum Error Correction for Unresolvable Spin Ensembles", eventUrl: "https://www.icts.res.in/program/qt", videoUrl: "https://www.youtube.com/watch?v=PrN4ENJrXX4", selected: true },
     { year: "2025", type: "Poster", event: "Quantum Symposium for Young Investigators", venue: "CQuICC, IIT Madras", title: "Protecting Information in a Parametrically Driven Hybrid Quantum System", selected: true },
     { year: "2025", type: "Talk", event: "APS Global Physics Summit", venue: "American Physical Society", title: "Quantum Error Correction for Unresolvable Spin Ensembles", selected: true },
     { year: "2024", type: "Workshop", event: "Quantum Information and Quantum Dynamics", venue: "IIT Bombay", title: "", selected: false },
-    { year: "2024", type: "Talk", event: "CAP Congress", venue: "Western University, Ontario, Canada", title: "Quantum Error Correction for Unresolvable Spin Ensembles", selected: true },
+    { year: "2024", type: "Talk", event: "CAP Congress", venue: "Western University, Ontario, Canada", title: "Quantum Error Correction for Unresolvable Spin Ensembles", eventUrl: "https://indico.global/event/440/", selected: true },
     { year: "2024", type: "Conference", event: "Photonics, Quantum Information, and Quantum Communication", venue: "SNBNCBS, Kolkata", title: "", selected: false },
     { year: "2023", type: "Workshop", event: "CREATE Commercialization & Communication", venue: "Quantum Algorithm Institute, Canada", title: "", selected: false },
     { year: "2023", type: "Workshop", event: "ICONS 2023", venue: "QuICST, IIT Bombay", title: "", selected: false },
