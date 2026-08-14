@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import date
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 import json, re
@@ -28,7 +29,8 @@ try:
         items.append(item)
     if not items:
         raise ValueError("arXiv returned an empty publication feed")
-    Path("assets/publications.js").write_text("window.PUBLICATIONS=" + json.dumps(items, ensure_ascii=False) + ";\n", encoding="utf-8")
+    payload = f'window.PUBLICATIONS_UPDATED="{date.today().isoformat()}";\nwindow.PUBLICATIONS=' + json.dumps(items, ensure_ascii=False) + ";\n"
+    Path("assets/publications.js").write_text(payload, encoding="utf-8")
     print(f"Updated {len(items)} publications from arXiv.")
 except (HTTPError, URLError, TimeoutError, ET.ParseError, ValueError) as error:
     print(f"Warning: arXiv refresh unavailable ({error}). Keeping the existing publication list.")

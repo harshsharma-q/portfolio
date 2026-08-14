@@ -20,6 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Validate static website
+        run: |
+          node scripts/validate_site.mjs
+          node --check assets/content.js
+          node --check assets/sheet-config.js
+          node --check assets/publications.js
+          node --check assets/site.js
       - name: Refresh publications from arXiv
         if: github.event_name != 'push'
         run: python3 scripts/update_arxiv.py
