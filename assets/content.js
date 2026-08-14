@@ -14,7 +14,7 @@ window.SITE_CONTENT = {
     department: "Department of Physics",
     location: "Mumbai, India",
     email: "harsh.sharma@iitb.ac.in",
-    photo: "assets/harsh-sharma.jpg",
+    photo: "assets/harsh-sharma.jpg?v=20260814d",
     headline: "Theory for robust quantum technologies.",
     introduction: "I am a theoretical physicist working at the intersection of quantum information and quantum thermodynamics. I study how information can be protected, characterized, and put to work in complex quantum systems.",
     shortBio: "My research combines quantum error correction, open-system dynamics, many-body entanglement, and quantum thermodynamics to develop realistic routes toward useful quantum devices.",
