@@ -3,38 +3,58 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const pages = ["index.html", "research.html", "background.html", "activities.html", "publications.html", "contact.html"];
+const scripts = ["assets/content.js", "assets/sheet-config.js", "assets/publications.js", "assets/site.js"];
+const redirects = {
+  "research.html": "index.html#publications",
+  "publications.html": "index.html#publications",
+  "activities.html": "index.html#talks",
+  "background.html": "index.html#background",
+  "contact.html": "index.html#contact",
+};
 const errors = [];
 
-for (const page of pages) {
-  const source = await readFile(path.join(root, page), "utf8");
-  for (const required of ["<title>", 'name="description"', 'rel="canonical"', 'id="site-header"', 'id="site-footer"', "assets/content.js", "assets/sheet-config.js", "assets/publications.js", "assets/site.js"]) {
-    if (!source.includes(required)) errors.push(`${page}: missing ${required}`);
+const index = await readFile(path.join(root, "index.html"), "utf8");
+for (const required of ["<title>", 'name="description"', 'rel="canonical"', 'id="main"', 'id="publications"', 'id="talks"', 'id="background"', 'id="contact"', ...scripts]) {
+  if (!index.includes(required)) errors.push(`index.html: missing ${required}`);
+}
+if (index.includes("private/")) errors.push("index.html: public page references private owner tools");
+const ids = [...index.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+const duplicates = ids.filter((id, position) => ids.indexOf(id) !== position);
+if (duplicates.length) errors.push(`index.html: duplicate ids ${[...new Set(duplicates)].join(", ")}`);
+for (const [, reference] of index.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
+  if (/^(?:https?:|mailto:|#|data:)/.test(reference)) continue;
+  const local = reference.split(/[?#]/)[0];
+  if (!local) continue;
+  try { await access(path.join(root, local)); }
+  catch { errors.push(`index.html: missing local reference ${local}`); }
+}
+const order = scripts.map(item => index.indexOf(item));
+if (!order.every((value, position) => value >= 0 && (position === 0 || value > order[position - 1]))) errors.push("index.html: data scripts are out of order");
+
+const content = await readFile(path.join(root, "assets/content.js"), "utf8");
+try {
+  const data = JSON.parse(content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1));
+  for (const key of ["profile", "publications", "talks", "education", "awards", "qualifications"]) {
+    if (!(key in data)) errors.push(`assets/content.js: missing "${key}"`);
   }
-  if (source.includes("private/")) errors.push(`${page}: public page references private owner tools`);
-  const ids = [...source.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
-  const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-  if (duplicates.length) errors.push(`${page}: duplicate ids ${[...new Set(duplicates)].join(", ")}`);
-  const references = [...source.matchAll(/\b(?:href|src)="([^"]+)"/g)].map(match => match[1]);
-  for (const reference of references) {
-    if (/^(?:https?:|mailto:|#|data:)/.test(reference)) continue;
-    const clean = reference.split(/[?#]/)[0];
-    if (!clean) continue;
-    try { await access(path.resolve(root, path.dirname(page), clean)); }
-    catch { errors.push(`${page}: missing local reference ${clean}`); }
+} catch (error) {
+  errors.push(`assets/content.js: content is not valid JSON (${error.message})`);
+}
+
+for (const [page, target] of Object.entries(redirects)) {
+  try {
+    const source = await readFile(path.join(root, page), "utf8");
+    if (!source.includes(`url=${target}`)) errors.push(`${page}: should redirect to ${target}`);
+  } catch {
+    errors.push(`${page}: redirect page is missing`);
   }
-  const scriptOrder = ["assets/content.js", "assets/sheet-config.js", "assets/publications.js", "assets/site.js"].map(item => source.indexOf(item));
-  if (!scriptOrder.every((value, index) => value >= 0 && (index === 0 || value > scriptOrder[index - 1]))) errors.push(`${page}: data scripts are out of order`);
 }
 
 const sitemap = await readFile(path.join(root, "sitemap.xml"), "utf8");
-for (const page of pages) {
-  const url = page === "index.html" ? "https://harshsharma-q.github.io/portfolio/" : `https://harshsharma-q.github.io/portfolio/${page}`;
-  if (!sitemap.includes(url)) errors.push(`sitemap.xml: missing ${url}`);
-}
+if (!sitemap.includes("<loc>https://harshsharma-q.github.io/portfolio/</loc>")) errors.push("sitemap.xml: missing the site root");
 
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-console.log(`Validated ${pages.length} public pages, local assets, canonical metadata, script order, and sitemap entries.`);
+console.log(`Validated index.html, local assets, content data, ${Object.keys(redirects).length} redirects, and the sitemap.`);

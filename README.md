@@ -1,36 +1,47 @@
 # Harsh Sharma — Academic Website
 
-Professional multi-page website for research, postdoctoral, and job applications.
+A single-page academic website: profile, publications, talks, and background.
+It is published with GitHub Pages at https://harshsharma-q.github.io/portfolio/.
 
-## Pages
+## Editing content: Google Sheets
 
-- `index.html` — profile, research perspective, selected work, and updates
-- `research.html` — research statement, connected themes, and project explanations
-- `background.html` — education, awards, fellowships, and qualifications
-- `activities.html` — talks, posters, conferences, workshops, official links, and recordings
-- `publications.html` — arXiv-synced publications with journal metadata, DOI, PDF, and BibTeX
-- `contact.html` — affiliation, research group, email, and academic profiles
+All content comes from a Google Sheet, so ordinary edits need no GitHub commit.
+The Sheet's **Read me** tab explains the rules; in short:
 
-## Fastest update: Google Sheets
+| Tab | One row per… | Notes |
+| --- | --- | --- |
+| Profile | field (`name`, `title`, `bio`, `availability`, `email`, links…) | Blank values are hidden. Each line of `bio` is a paragraph. |
+| Publications | paper | Adds summaries, journal references, and non-arXiv papers. Write IDs as `arXiv:2408.11628`. |
+| Talks | event | Rows with a title are talks/posters; rows without one are workshops attended. |
+| Education, Awards, Qualifications | entry | Shown in row order. |
 
-The website includes an optional live Google Sheets data source. A prepared workbook named `Harsh_Sharma_Website_Content.xlsx` accompanies the local project.
+Do not rename tabs or change the first row of a tab. A tab whose column names
+don't match is ignored, and the site shows the bundled copy instead.
+Links can be written in any text as `[label](https://…)`.
 
-1. Import the workbook into Google Sheets.
-2. Update the content in its named tabs. Do not rename row-one headers or sheet tabs.
-3. Share the Sheet as **Anyone with the link — Viewer**. Only public website information belongs in this Sheet.
-4. Copy the long spreadsheet ID from its URL.
-5. Open `assets/sheet-config.js`, paste the ID into `spreadsheetId`, and change `enabled` to `true`.
-6. Commit that configuration change. After that, ordinary content edits in Google Sheets appear on the website without a GitHub commit.
+### Connecting a Sheet
 
-If the Sheet is unavailable, the website automatically falls back to `assets/content.js`.
+1. In Google Sheets, open the existing Sheet, choose **File → Import → Upload**, select
+   `Harsh_Sharma_Website_Content.xlsx`, and pick **Replace spreadsheet**. This keeps the
+   same Sheet ID and sharing settings.
+2. The Sheet must be shared as **Anyone with the link — Viewer**. Everything in it is public.
+3. `assets/sheet-config.js` holds the Sheet ID and `enabled: true`.
 
-## Update through GitHub instead
+The page waits up to 2.5 seconds for the Sheet, then shows the bundled copy in
+`assets/content.js`. Keep that file roughly in step with the Sheet; it must stay
+valid JSON, which the deploy workflow checks.
 
-All bundled website content is in `assets/content.js`. Edit it with GitHub’s pencil button and commit the change. GitHub Pages republishes automatically.
+## Publications from arXiv
 
-## Publications
+`.github/workflows/pages.yml` refreshes `assets/publications.js` weekly from the
+arXiv author feed, so new preprints appear automatically. Rows in the Sheet's
+Publications tab are matched by arXiv ID and add a summary or override fields.
 
-`assets/publications.js` is refreshed weekly from Harsh Sharma’s arXiv author feed by `.github/workflows/pages.yml`. Journal references and DOIs are shown whenever arXiv supplies them. The 2024 *Journal of Physics A* article, which is not included in that author feed, is merged from the verified manual record in `assets/content.js`.
+## Old page addresses
+
+`research.html`, `publications.html`, `activities.html`, `background.html`, and
+`contact.html` redirect to the matching section of `index.html`, so existing
+links keep working.
 
 ## Private CV builder
 

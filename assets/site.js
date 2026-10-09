@@ -1,5 +1,18 @@
-(async () => {
+(() => {
+  const SHEET_TIMEOUT_MS = 2500;
+  const bundled = window.SITE_CONTENT || {};
+  const config = window.SHEET_CONFIG || {};
+  const $ = id => document.getElementById(id);
+
+  // ---------- helpers ----------
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const clean = value => String(value ?? "").trim();
+  // Escapes text and turns [label](https://…) into links.
+  const rich = value => esc(value).replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/g, (_, label, url) => `<a href="${url}"${url.startsWith("http") ? ' target="_blank" rel="noreferrer"' : ""}>${label}</a>`);
+  const external = (url, label) => url ? `<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(label)}</a>` : "";
+  const arxivId = value => clean(value).replace(/^https?:\/\/arxiv\.org\/(?:abs|pdf)\//i, "").replace(/^arxiv:\s*/i, "").replace(/\.pdf$/i, "").replace(/v\d+$/, "");
+  const hasContent = row => Object.values(row).some(value => clean(value));
+
   const parseCsv = text => {
     const rows = [];
     let row = [], cell = "", quoted = false;
@@ -15,150 +28,226 @@
     }
     if (cell || row.length) { row.push(cell); rows.push(row); }
     const headers = (rows.shift() || []).map(header => header.trim());
-    return rows
-      .filter(values => values.some(value => value.trim()))
-      .map(values => Object.fromEntries(headers.map((header, index) => [header, (values[index] || "").trim()])));
+    return { headers, rows: rows.map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]))).filter(hasContent) };
   };
 
-  const loadSheetContent = async base => {
-    const config = window.SHEET_CONFIG;
-    if (!config?.enabled || !config.spreadsheetId) return base;
-    const next = structuredClone(base);
-    const fetchTab = async tab => {
-      const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(config.spreadsheetId)}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) throw new Error(`Sheet tab ${tab} returned ${response.status}`);
-      return parseCsv(await response.text());
-    };
+  // ---------- Google Sheet ----------
+  // Unknown tab names make Google return the first tab, so each tab is accepted only if its headers match.
+  const fetchTab = async ({ name, columns }) => {
     try {
-      const entries = await Promise.all(Object.entries(config.tabs).map(async ([key, tab]) => [key, await fetchTab(tab)]));
-      const tabs = Object.fromEntries(entries);
-      (tabs.profile || []).forEach(({ section, key, value }) => {
-        if (next[section] && key && value !== "") next[section][key] = value;
-      });
-      if (tabs.interests?.length) next.researchInterests = tabs.interests.map(row => row.label).filter(Boolean);
-      ["updates", "projects", "education", "awards", "qualifications", "presentations"].forEach(key => {
-        if (tabs[key]?.length) next[key] = tabs[key].map(row => ({ ...row, selected: String(row.selected).toLowerCase() === "true" }));
-      });
-      next.sheetConnected = true;
-      return next;
+      const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(config.spreadsheetId)}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(name)}`;
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const { headers, rows } = parseCsv(await response.text());
+      if (!columns.every(column => headers.includes(column))) throw new Error(`unexpected columns: ${headers.join(", ")}`);
+      return rows;
     } catch (error) {
-      console.warn("Google Sheets data was unavailable; using the bundled website content.", error);
-      return base;
+      console.warn(`Sheet tab "${name}" was not used (${error.message}); showing the bundled copy.`);
+      return null;
     }
   };
 
-  const data = await loadSheetContent(window.SITE_CONTENT || {});
-  const publicationYear = item => {
-    const years = String(item.journal || "").match(/(?:19|20)\d{2}/g);
-    return Number(years?.at(-1) || item.year || 0);
+  const loadSheet = async () => {
+    const entries = await Promise.all(Object.entries(config.tabs || {}).map(async ([key, tab]) => [key, await fetchTab(tab)]));
+    const data = structuredClone(bundled);
+    entries.forEach(([key, rows]) => {
+      if (!rows) return;
+      if (key === "profile") data.profile = Object.fromEntries(rows.filter(row => clean(row.field)).map(row => [clean(row.field), clean(row.value)]));
+      else data[key] = rows;
+    });
+    return data;
   };
-  const publicationMap = new Map();
-  [...(window.PUBLICATIONS || []), ...(data.manualPublications || [])].forEach(item => publicationMap.set(item.id || item.doi || item.title, { ...(publicationMap.get(item.id) || {}), ...item }));
-  const papers = [...publicationMap.values()].sort((a, b) => publicationYear(b) - publicationYear(a) || String(b.id).localeCompare(String(a.id)));
-  const page = document.body.dataset.page || "about";
-  const nav = [
-    ["about", "index.html", "About"],
-    ["research", "research.html", "Research"],
-    ["background", "background.html", "Background"],
-    ["activities", "activities.html", "Talks & Events"],
-    ["publications", "publications.html", "Publications"],
-    ["contact", "contact.html", "Contact"],
-  ];
-  const formatDate = value => {
-    if (!value) return "";
-    const date = new Date(`${value}T00:00:00`);
-    return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  // ---------- publications ----------
+  const yearOf = item => {
+    const journalYears = clean(item.journal).match(/(?:19|20)\d{2}/g);
+    if (journalYears) return Number(journalYears.at(-1));
+    const fromId = arxivId(item.arxiv || item.id).match(/^(\d{2})(\d{2})\./);
+    return fromId ? 2000 + Number(fromId[1]) : Number(item.year) || 0;
   };
-  const mount = (selector, html) => { const element = document.querySelector(selector); if (element) element.innerHTML = html; };
-  const setText = (selector, value) => document.querySelectorAll(selector).forEach(element => { element.textContent = value || ""; });
-  const setLinks = (selector, url) => document.querySelectorAll(selector).forEach(element => { if (url) element.href = url; });
+  const splitAuthors = authors => clean(authors).split(/\s*[·,]\s*/).filter(Boolean);
 
-  mount("#site-header", `<a class="brand" href="index.html" aria-label="Harsh Sharma, home"><span class="brand-mark">HS</span><span><strong>${esc(data.profile.name)}</strong><small>Quantum information · thermodynamics</small></span></a><button class="menu-button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav id="primary-nav" aria-label="Primary navigation">${nav.map(([id, url, label]) => `<a href="${url}"${page === id ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>`);
-  mount("#site-footer", `<div><strong>${esc(data.profile.name)}</strong><span>${esc(data.profile.department)}, IIT Bombay</span></div><div><a href="mailto:${esc(data.profile.email)}">${esc(data.profile.email)}</a><span>Updated ${esc(formatDate(data.lastUpdated))}</span><span>© ${new Date().getFullYear()}</span></div>`);
+  // The weekly arXiv feed (assets/publications.js) adds new papers; Sheet rows add summaries and override fields.
+  const mergePublications = rows => {
+    const byKey = new Map();
+    (window.PUBLICATIONS || []).forEach(item => byKey.set(arxivId(item.id), { ...item, arxiv: item.id }));
+    (rows || []).forEach(row => {
+      const key = arxivId(row.arxiv) || clean(row.doi) || clean(row.title);
+      const overrides = Object.fromEntries(Object.entries(row).filter(([, value]) => clean(value)).map(([field, value]) => [field, clean(value)]));
+      byKey.set(key, { ...(byKey.get(key) || {}), ...overrides });
+    });
+    return [...byKey.values()]
+      .map(item => ({ ...item, id: arxivId(item.arxiv || item.id), year: yearOf(item) }))
+      .sort((a, b) => b.year - a.year || b.id.localeCompare(a.id));
+  };
 
-  const menu = document.querySelector(".menu-button");
-  menu?.addEventListener("click", () => {
-    const open = menu.getAttribute("aria-expanded") === "true";
-    menu.setAttribute("aria-expanded", String(!open));
-    document.querySelector("#primary-nav")?.classList.toggle("open", !open);
-  });
-
-  setText("[data-introduction]", data.profile.introduction);
-  setText("[data-short-bio]", data.profile.shortBio);
-  setText("[data-perspective]", data.profile.perspective);
-  setText("[data-perspective-note]", data.profile.perspectiveNote);
-  setText("[data-availability]", data.profile.availability);
-  setText("[data-location]", data.profile.location);
-  setText("[data-role]", `${data.profile.role}, ${data.profile.department}, ${data.profile.institution}`);
-  setText("[data-supervisor]", data.profile.supervisor);
-  setText("[data-updated]", formatDate(data.lastUpdated));
-  document.querySelectorAll("[data-photo]").forEach(image => { image.src = data.profile.photo; image.alt = `${data.profile.name}, ${data.profile.role} at ${data.profile.institution}`; });
-  document.querySelectorAll("[data-email]").forEach(element => { element.textContent = data.profile.email; element.href = `mailto:${data.profile.email}`; });
-  [["[data-linkedin]", data.links.linkedin], ["[data-orcid]", data.links.orcid], ["[data-arxiv]", data.links.arxiv], ["[data-scholar]", data.links.scholar], ["[data-department]", data.links.department], ["[data-supervisor-link]", data.links.supervisor]].forEach(([selector, url]) => setLinks(selector, url));
-
-  mount("#interests", (data.researchInterests || []).map(item => `<span>${esc(item)}</span>`).join(""));
-  mount("#focus-grid", (data.researchInterests || []).map((item, index) => `<article><span>${String(index + 1).padStart(2, "0")}</span><h3>${esc(item)}</h3></article>`).join(""));
-  mount("#profile-stats", `<article><strong>${papers.length}</strong><span>research papers</span></article><article><strong>${(data.researchThemes || []).length}</strong><span>connected themes</span></article><article><strong>${(data.presentations || []).filter(item => ["Talk", "Poster"].includes(item.type)).length}</strong><span>talks & posters</span></article>`);
-  mount("#updates-list", (data.updates || []).map(item => `<article><time>${esc(item.date)}</time><div><h3>${esc(item.title)}</h3><p>${esc(item.description)}</p></div><a href="${esc(item.url)}" target="_blank" rel="noreferrer" aria-label="Open ${esc(item.title)}">↗</a></article>`).join(""));
-
-  const projectCard = item => `<article class="project-card"><p>${esc(item.tag)}</p><h3>${esc(item.title)}</h3><div><p>${esc(item.description)}</p><a href="https://arxiv.org/abs/${encodeURIComponent(item.arxiv)}" target="_blank" rel="noreferrer">Read paper <span>↗</span></a></div></article>`;
-  mount("#selected-research", (data.projects || []).filter(item => item.selected).slice(0, 3).map(projectCard).join(""));
-  mount("#research-projects", (data.projects || []).map(projectCard).join(""));
-  mount("#research-themes", (data.researchThemes || []).map(item => `<article class="theme-card"><span>${esc(item.number)}</span><div><p>${esc(item.label)}</p><h2>${esc(item.title)}</h2><p>${esc(item.description)}</p><small>${esc(item.methods)}</small><a href="https://arxiv.org/abs/${encodeURIComponent(item.arxiv)}" target="_blank" rel="noreferrer">Related publication ↗</a></div></article>`).join(""));
-
-  const timelineItem = item => `<article><time>${esc(item.period || item.year)}</time><div><h3>${esc(item.degree || item.title)}</h3><p>${esc(item.institution || item.organization)}</p>${item.detail ? `<small>${esc(item.detail)}</small>` : ""}</div></article>`;
-  mount("#education-list", (data.education || []).map(timelineItem).join(""));
-  mount("#awards-list", (data.awards || []).map(timelineItem).join(""));
-  mount("#qualifications-list", (data.qualifications || []).map(timelineItem).join(""));
-
-  const events = data.presentations || [];
-  const featuredVideo = events.find(item => item.videoUrl);
-  if (featuredVideo) {
-    let videoId = "";
-    try { const url = new URL(featuredVideo.videoUrl); videoId = url.searchParams.get("v") || url.pathname.split("/").filter(Boolean).at(-1); } catch (_) {}
-    mount("#featured-video", `<a class="video-card" href="${esc(featuredVideo.videoUrl)}" target="_blank" rel="noreferrer"><img src="https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg" alt="Video thumbnail for ${esc(featuredVideo.title)}" loading="lazy"><span class="play-button" aria-hidden="true">▶</span><div><p>Featured recording · ${esc(featuredVideo.event)}</p><h2>${esc(featuredVideo.title)}</h2><span>Watch presentation ↗</span></div></a>`);
-  }
-  const eventTypes = ["All", ...new Set(events.map(item => item.type))];
-  mount("#event-filters", eventTypes.map((type, index) => `<button type="button" data-event-filter="${esc(type)}"${index === 0 ? ' aria-pressed="true"' : ' aria-pressed="false"'}>${esc(type)}</button>`).join(""));
-  mount("#events", events.map(item => `<article class="activity" data-event-type="${esc(item.type)}"><div class="activity-meta"><time>${esc(item.year)}</time><span>${esc(item.type)}</span></div><div><h3>${esc(item.event)}</h3><p>${esc(item.venue)}</p>${item.title ? `<strong>${esc(item.title)}</strong>` : ""}</div><div class="activity-links">${item.eventUrl ? `<a href="${esc(item.eventUrl)}" target="_blank" rel="noreferrer">${esc(item.eventLabel || "Event website")} ↗</a>` : ""}${item.videoUrl ? `<a class="video" href="${esc(item.videoUrl)}" target="_blank" rel="noreferrer">Watch video ▶</a>` : ""}</div></article>`).join(""));
-  document.querySelectorAll("[data-event-filter]").forEach(button => button.addEventListener("click", () => {
-    const filter = button.dataset.eventFilter;
-    document.querySelectorAll("[data-event-filter]").forEach(item => item.setAttribute("aria-pressed", String(item === button)));
-    document.querySelectorAll("[data-event-type]").forEach(item => { item.hidden = filter !== "All" && item.dataset.eventType !== filter; });
-  }));
-
-  const authorHtml = authors => esc(authors).replace(/Harsh Sharma/g, '<strong class="author-self">Harsh Sharma</strong>');
   const bibtex = item => {
-    const firstWord = String(item.title).replace(/[^A-Za-z0-9 ]/g, "").split(/\s+/).find(Boolean) || "Paper";
-    const key = `Sharma${publicationYear(item)}${firstWord}`;
-    const authors = String(item.authors).split(/\s+·\s+|,\s+/).join(" and ");
-    if (item.journal) return `@article{${key},\n  title={${item.title}},\n  author={${authors}},\n  journal={${item.journal}},\n  year={${publicationYear(item)}}${item.doi ? `,\n  doi={${item.doi}}` : ""}\n}`;
-    return `@misc{${key},\n  title={${item.title}},\n  author={${authors}},\n  year={${item.year}},\n  eprint={${item.id}},\n  archivePrefix={arXiv}\n}`;
+    const authors = splitAuthors(item.authors);
+    const surname = (authors[0] || "Author").split(/\s+/).map(part => part.replace(/[^A-Za-z]/g, "")).filter(part => part.length > 1).at(-1) || "Author";
+    const firstWord = clean(item.title).replace(/[^A-Za-z0-9 ]/g, "").split(/\s+/).find(word => word.length > 3) || "paper";
+    const fields = [`  title={${item.title}}`, `  author={${authors.join(" and ")}}`];
+    if (item.journal) fields.push(`  journal={${item.journal.replace(/\s*\((?:19|20)\d{2}\)\s*$/, "")}}`);
+    fields.push(`  year={${item.year}}`);
+    if (item.doi) fields.push(`  doi={${item.doi}}`);
+    if (item.id) fields.push(`  eprint={${item.id}}`, "  archivePrefix={arXiv}");
+    return `@${item.journal ? "article" : "misc"}{${surname}${item.year}${firstWord},\n${fields.join(",\n")}\n}`;
   };
-  mount("#all-publications", papers.map((item, index) => `<article class="publication"><span>${String(index + 1).padStart(2, "0")}</span><div><p class="publication-status">${item.journal ? `<b>Published</b> · ${esc(item.journal)}` : `<b>Preprint</b> · arXiv:${esc(item.id)} · ${esc(item.year)}`}</p><h3>${esc(item.title)}</h3><small>${authorHtml(item.authors)}</small><div><a href="https://arxiv.org/abs/${encodeURIComponent(item.id)}" target="_blank" rel="noreferrer">arXiv ↗</a><a href="https://arxiv.org/pdf/${encodeURIComponent(item.id)}" target="_blank" rel="noreferrer">PDF ↓</a>${item.doi ? `<a href="https://doi.org/${encodeURIComponent(item.doi)}" target="_blank" rel="noreferrer">Journal / DOI ↗</a>` : ""}<button class="bibtex-button" type="button" data-bibtex="${esc(bibtex(item))}">Copy BibTeX</button></div></div></article>`).join(""));
-  document.querySelectorAll("[data-bibtex]").forEach(button => button.addEventListener("click", async () => {
-    const original = button.textContent;
-    try { await navigator.clipboard.writeText(button.dataset.bibtex); button.textContent = "Copied"; }
-    catch (_) { button.textContent = "Copy failed"; }
-    window.setTimeout(() => { button.textContent = original; }, 1600);
-  }));
-  setText("[data-publications-updated]", formatDate(window.PUBLICATIONS_UPDATED || data.lastUpdated));
 
-  const structuredData = {
-    "@context": "https://schema.org",
-    "@type": "Person",
-    name: data.profile.name,
-    url: "https://harshsharma-q.github.io/portfolio/",
-    image: "https://harshsharma-q.github.io/portfolio/assets/harsh-sharma.jpg",
-    jobTitle: data.profile.role,
-    email: `mailto:${data.profile.email}`,
-    affiliation: { "@type": "CollegeOrUniversity", name: data.profile.institution, url: "https://www.iitb.ac.in/" },
-    sameAs: [data.links.scholar, data.links.orcid, data.links.arxiv, data.links.linkedin],
-    knowsAbout: data.researchInterests,
+  // ---------- rendering ----------
+  const renderProfile = profile => {
+    $("profile-name").textContent = profile.name || "";
+    $("profile-title").textContent = profile.title || "";
+    $("profile-bio").innerHTML = clean(profile.bio).split(/\n+/).filter(Boolean).map(paragraph => `<p>${rich(paragraph)}</p>`).join("");
+    const availability = $("profile-availability");
+    availability.innerHTML = rich(profile.availability);
+    availability.hidden = !clean(profile.availability);
+
+    const links = [
+      profile.email && `<a href="mailto:${esc(profile.email)}">${esc(profile.email)}</a>`,
+      external(profile.cv, "CV"),
+      external(profile.scholar, "Google Scholar"),
+      external(profile.arxiv, "arXiv"),
+      external(profile.orcid, "ORCID"),
+      external(profile.linkedin, "LinkedIn"),
+      external(profile.github, "GitHub"),
+    ].filter(Boolean);
+    $("profile-links").innerHTML = links.map(link => `<li>${link}</li>`).join("");
+
+    const portrait = $("profile-portrait");
+    portrait.hidden = !profile.photo;
+    if (profile.photo) { $("profile-photo").src = profile.photo; $("profile-photo").alt = `Portrait of ${profile.name || ""}`; }
+
+    document.querySelectorAll("[data-cv-link]").forEach(link => { link.hidden = !profile.cv; if (profile.cv) link.href = profile.cv; });
+    $("footer-address").textContent = profile.address || "";
+    const email = $("footer-email");
+    email.textContent = profile.email || "";
+    email.href = profile.email ? `mailto:${profile.email}` : "#";
   };
-  const jsonLd = document.createElement("script");
-  jsonLd.type = "application/ld+json";
-  jsonLd.textContent = JSON.stringify(structuredData);
-  document.head.appendChild(jsonLd);
+
+  const renderPublications = (papers, selfName) => {
+    const authorHtml = authors => splitAuthors(authors).map(name => name === selfName ? `<strong>${esc(name)}</strong>` : esc(name)).join(", ");
+    $("publication-list").innerHTML = papers.map(item => {
+      const journal = clean(item.journal).replace(/\s*\((?:19|20)\d{2}\)\s*$/, "");
+      const venue = journal ? esc(journal) : item.id ? `Preprint, arXiv:${esc(item.id)}` : "";
+      const titleUrl = item.doi ? `https://doi.org/${item.doi}` : item.id ? `https://arxiv.org/abs/${item.id}` : "";
+      const links = [
+        item.id && external(`https://arxiv.org/abs/${item.id}`, "arXiv"),
+        item.id && external(`https://arxiv.org/pdf/${item.id}`, "PDF"),
+        item.doi && external(`https://doi.org/${item.doi}`, "Journal"),
+        `<button type="button" class="link-button" data-bibtex="${esc(bibtex(item))}">BibTeX</button>`,
+      ].filter(Boolean);
+      return `<article class="entry pub"><span class="entry-year">${esc(item.year || "")}</span><div>
+        <h3>${titleUrl ? `<a href="${esc(titleUrl)}" target="_blank" rel="noreferrer">${esc(item.title)}</a>` : esc(item.title)}</h3>
+        <p class="pub-authors">${authorHtml(item.authors)}</p>
+        ${venue ? `<p class="pub-venue">${venue}</p>` : ""}
+        ${clean(item.summary) ? `<p class="pub-summary">${rich(item.summary)}</p>` : ""}
+        <p class="entry-links">${links.join("")}</p>
+      </div></article>`;
+    }).join("");
+    document.querySelectorAll("[data-bibtex]").forEach(button => button.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(button.dataset.bibtex); button.textContent = "Copied"; }
+      catch (_) { button.textContent = "Copy failed"; }
+      window.setTimeout(() => { button.textContent = "BibTeX"; }, 1600);
+    }));
+  };
+
+  const renderTalks = talks => {
+    // Rows with a title are talks or posters; the same title given at several events is listed once.
+    const groups = new Map();
+    talks.filter(item => clean(item.title)).forEach(item => {
+      const key = clean(item.title).toLowerCase().replace(/\s+/g, " ");
+      if (!groups.has(key)) groups.set(key, { title: clean(item.title), items: [] });
+      groups.get(key).items.push(item);
+    });
+    const sorted = [...groups.values()]
+      .map(group => ({ ...group, items: [...group.items].sort((a, b) => Number(b.year) - Number(a.year)) }))
+      .sort((a, b) => Number(b.items[0].year) - Number(a.items[0].year));
+    $("talk-list").innerHTML = sorted.map(group => `<article class="talk"><h3>${esc(group.title)}</h3><ul>${group.items.map(item => {
+      const where = [item.event, item.venue].map(clean).filter(Boolean).map(esc).join(", ");
+      const links = [external(item.eventUrl, clean(item.eventLabel) || "Event"), external(item.videoUrl, "Video")].filter(Boolean).join("");
+      return `<li><span class="entry-year">${esc(item.year)}</span><span>${clean(item.type) ? `${esc(item.type)} · ` : ""}${where}${links ? ` <span class="entry-links">${links}</span>` : ""}</span></li>`;
+    }).join("")}</ul></article>`).join("");
+
+    const attended = talks.filter(item => !clean(item.title));
+    $("attended-list").innerHTML = attended.length ? `<h3 class="subhead">Schools and workshops attended</h3><ul class="compact">${attended.map(item => {
+      const name = clean(item.eventUrl) ? external(item.eventUrl, item.event) : esc(item.event);
+      return `<li><span class="entry-year">${esc(item.year)}</span><span>${name}${clean(item.venue) ? `, ${esc(item.venue)}` : ""}</span></li>`;
+    }).join("")}</ul>` : "";
+  };
+
+  const renderBackground = data => {
+    const block = (heading, rows, render) => rows?.length ? `<h3 class="subhead">${heading}</h3><ul class="compact">${rows.map(render).join("")}</ul>` : "";
+    $("background-list").innerHTML = [
+      block("Education", data.education, item => `<li><span class="entry-year wide">${esc(item.period)}</span><span><strong>${esc(item.degree)}</strong>, ${esc(item.institution)}${clean(item.detail) ? `<small>${rich(item.detail)}</small>` : ""}</span></li>`),
+      block("Fellowships and awards", data.awards, item => `<li><span class="entry-year wide">${esc(item.year)}</span><span><strong>${esc(item.title)}</strong>, ${esc(item.organization)}${clean(item.detail) ? `<small>${rich(item.detail)}</small>` : ""}</span></li>`),
+      block("National examinations", data.qualifications, item => `<li><span class="entry-year wide">${esc(item.year)}</span><span>${esc(item.title)}: ${esc(item.organization)}</span></li>`),
+    ].join("");
+  };
+
+  const renderStructuredData = (profile, papers) => {
+    let script = document.getElementById("person-jsonld");
+    if (!script) {
+      script = Object.assign(document.createElement("script"), { type: "application/ld+json", id: "person-jsonld" });
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: profile.name,
+      url: "https://harshsharma-q.github.io/portfolio/",
+      image: "https://harshsharma-q.github.io/portfolio/assets/harsh-sharma.jpg",
+      jobTitle: profile.title,
+      email: profile.email ? `mailto:${profile.email}` : undefined,
+      affiliation: { "@type": "CollegeOrUniversity", name: "Indian Institute of Technology Bombay", url: "https://www.iitb.ac.in/" },
+      sameAs: [profile.scholar, profile.orcid, profile.arxiv, profile.linkedin, profile.github].filter(Boolean),
+      subjectOf: papers.filter(item => item.doi).map(item => ({ "@type": "ScholarlyArticle", name: item.title, url: `https://doi.org/${item.doi}` })),
+    });
+  };
+
+  let rendered = "";
+  const render = data => {
+    const signature = JSON.stringify(data);
+    if (signature === rendered) return;
+    const firstRender = !rendered;
+    rendered = signature;
+    const profile = data.profile || {};
+    const papers = mergePublications(data.publications);
+    renderProfile(profile);
+    renderPublications(papers, profile.name);
+    renderTalks(data.talks || []);
+    renderBackground(data);
+    renderStructuredData(profile, papers);
+    $("main").classList.remove("is-loading");
+    // Content arrives after the browser has already jumped to #section, so jump again once it is in place.
+    const target = firstRender && location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target) {
+      const root = document.documentElement;
+      root.style.scrollBehavior = "auto";
+      target.scrollIntoView();
+      root.style.scrollBehavior = "";
+    }
+  };
+
+  // ---------- page behaviour ----------
+  const header = document.querySelector(".site-header");
+  const onScroll = () => header.classList.toggle("scrolled", window.scrollY > 4);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  const navLinks = [...document.querySelectorAll('.site-header nav a[href^="#"]')];
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(entries => entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      navLinks.forEach(link => link.toggleAttribute("aria-current", link.getAttribute("href") === `#${entry.target.id}`));
+    }), { rootMargin: "-45% 0px -50% 0px" });
+    document.querySelectorAll("main section[id]").forEach(section => observer.observe(section));
+  }
+
+  // Wait briefly for the Sheet so visitors do not see the bundled copy flash first.
+  if (config.enabled && config.spreadsheetId) {
+    const fallback = window.setTimeout(() => render(bundled), SHEET_TIMEOUT_MS);
+    loadSheet().then(data => { window.clearTimeout(fallback); render(data); });
+  } else {
+    render(bundled);
+  }
 })();
